@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaClipping InovEM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <h2 class="text-center">MediaClipping InovEM</h2>
+        <div class="card p-4 shadow-sm">
+            <label class="form-label">Carregar Arquivos do Google Trends</label>
+            <input type="file" id="googleFileInput" class="form-control" accept=".xlsx,.xls" multiple>
+            
+            <label class="form-label mt-3">Carregar Arquivos do X Trends</label>
+            <input type="file" id="xFileInput" class="form-control" accept=".xlsx,.xls" multiple>
+            
+            <button class="btn btn-primary mt-3" onclick="processFiles('googleFileInput')">Processar Google Trends</button>
+            <button class="btn btn-primary mt-3" onclick="processFiles('xFileInput')">Processar X Trends</button>
+        </div>
+        <div class="mt-4">
+            <h4>Resultados</h4>
+            <table class="table table-bordered mt-3" id="resultTable">
+                <thead>
+                    <tr>
+                        <th>Tendências</th>
+                        <th>Volume de Pesquisa</th>
+                        <th>Data</th>
+                        <th>Hora</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <button class="btn btn-success mt-3" onclick="exportData()">Exportar Dados</button>
+        </div>
+    </div>
+
+    <script>
+        let combinedData = [];
+
+        function processFiles(inputId) {
+            const files = document.getElementById(inputId).files;
+            if (!files.length) {
+                alert("Por favor, carregue arquivos Excel.");
+                return;
+            }
+            combinedData = [];
+            
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function (event) {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: "array" });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    let jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    if (jsonData.length > 1) {
+                        jsonData.slice(1).forEach(row => {
+                            if (row.length >= 2) {
+                                const dateStr = file.name.match(/\d{8}/);
+                                const timeStr = file.name.match(/\d{6}/);
+                                const formattedDate = dateStr ? `${dateStr[0].slice(0, 4)}-${dateStr[0].slice(4, 6)}-${dateStr[0].slice(6)}` : "N/A";
+                                const formattedTime = timeStr ? `${timeStr[0].slice(0, 2)}:${timeStr[0].slice(2, 4)}:${timeStr[0].slice(4)}` : "N/A";
+                                
+                                combinedData.push({
+                                    tendencias: row[0].charAt(0).toUpperCase() + row[0].slice(1),
+                                    volume: parseFloat(row[1]).toFixed(2),
+                                    data: formattedDate,
+                                    hora: formattedTime
+                                });
+                            }
+                        });
+                    }
+                    updateTable();
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function updateTable() {
+            const tableBody = document.querySelector("#resultTable tbody");
+            tableBody.innerHTML = "";
+            combinedData.forEach(item => {
+                let row = `<tr>
+                    <td>${item.tendencias}</td>
+                    <td>${item.volume}</td>
+                    <td>${item.data}</td>
+                    <td>${item.hora}</td>
+                </tr>`;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        function exportData() {
+            if (!combinedData.length) {
+                alert("Nenhum dado para exportar.");
+                return;
+            }
+            const ws = XLSX.utils.json_to_sheet(combinedData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Dados");
+            XLSX.writeFile(wb, "tendencias_combinadas.xlsx");
+        }
+    </script>
+</body>
+</html>
